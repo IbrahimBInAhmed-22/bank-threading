@@ -18,15 +18,15 @@ class BankServer {
         {"3456789", {"Alice Brown", "4321"}},
         {"4567890", {"Bob White", "8765"}}
         };
-    boost::asio::io_context so_context;
+    boost::asio::io_context ioContext;
     unique_ptr<tcp::acceptor> acceptor;
 
-    int request_counter = 0;
+    int requestCounter = 0;
     void handleClient(unique_ptr<tcp::socket> socket) {
         try {
 
-            string authenticated_user = "";
-            bool is_authenticated = false;
+            string authenticatedUser = "";
+            bool isAuthenticated = false;
             while(true){
                 boost::asio::streambuf buffer;
                 boost::asio::read_until(*socket, buffer, "\n");
@@ -37,11 +37,11 @@ class BankServer {
                 cout << "Received request: " << request << endl;
                 string response;
 
-                if(!is_authenticated){
-                    response = handle_authentication(request, authenticated_user, is_authenticated);
+                if(!isAuthenticated){
+                    response = handle_authentication(request, authenticatedUser, isAuthenticated);
                 }
                 else{
-                   // response = handle_banking_request(request, authenticated_user);
+                   // response = handle_banking_request(request, authenticatedUser);
                    usleep(10000);
                    cout << "Disconnecting client after processing request." << endl;;
                 }
@@ -54,45 +54,44 @@ class BankServer {
         }
         }
 
-    string handle_authentication(const string& request, string& authenticated_user, bool& is_authenticated) 
+    string handle_authentication(const string& request, string& authenticatedUser, bool& isAuthenticated) 
     {
         if(request.substr(0, 5) == "AUTH:") {
-            size_t first_colon = request.find(':', 5);
+            size_t firstColon = request.find(':', 5);
 
-            if(first_colon == string::npos ) {
+            if(firstColon == string::npos ) {
                 return "AUTH_FAILED:Invalid request format";
             }
            
-                string card_number = request.substr(5, first_colon - 5);
-                string pin = request.substr(first_colon+1);
-
+                string card_number = request.substr(5, firstColon-);
+                string pin = request.substr(firstColon+1);
+                cout << "Received authentication request for card number: " << card_number << endl;
                 auto it = cardDatabase.find(card_number);
                 if(it != cardDatabase.end() && (it->second.second == pin))
                 {
-                    authenticated_user = it->second.first;
+                    authenticatedUser = it->second.first;
 //-------------------------------------------------------------uncommment for proper functionality--------------------------------------------//
-                    // is_authenticated = true;
-                    return "AUTH_SUCCESS:" + authenticated_user;    
+                    // isAuthenticated = true;
+                    return "AUTH_SUCCESS:" + authenticatedUser;    
                          
                 } else {
                      return "AUTH_FAILED: Invalid card number or PIN";
                  }
-cout << "Pin: " << pin << endl;
         }
        
             return "AUTH_FAILED; Unkown command";
         
         
     }
-    //string handle_banking_request(const string& request, const string& authenticated_user) {}
+    //string handle_banking_request(const string& request, const string& authenticatedUser) {}
 public:
     BankServer(int port) {
-        acceptor = make_unique<tcp::acceptor>(so_context, tcp::endpoint(tcp::v4(), port));
+        acceptor = make_unique<tcp::acceptor>(ioContext, tcp::endpoint(tcp::v4(), port));
     }
     void start() {
         cout << "Bank server started, waiting for connections..." << endl;
         while(true){
-            auto socket = make_unique<tcp::socket>(so_context);
+            auto socket = make_unique<tcp::socket>(ioContext);
             acceptor->accept(*socket);
             cout << "ATM connected from " << socket->remote_endpoint().address().to_string() << ":" 
             << socket->remote_endpoint().port() << endl;

@@ -6,14 +6,14 @@
 using namespace std;
 using boost::asio::ip::tcp;
 
-class ATMClient {
+class AtmClient {
     private:
-    boost::asio::io_context io_context;
+    boost::asio::io_context ioContext;
     unique_ptr<tcp::socket> socket;
-    string current_user = "";
-    bool is_authenticated = false;
+    string currentUser = "";
+    bool isAuthenticated = false;
 
-    bool send_message(const string& message) {
+    bool sendMessage(const string& message) {
         try{
         string request = message + "\n";
         boost::asio::write(*socket, boost::asio::buffer(request));
@@ -27,7 +27,7 @@ class ATMClient {
 
     }
 
-    string receive_message() {
+    string receiveMessage() {
         try {
             boost::asio::streambuf buffer;
             boost::asio::read_until(*socket, buffer, "\n");
@@ -44,25 +44,29 @@ class ATMClient {
     }
     bool authenticate()
     {
+        int n;
         cout << "----Authentication----" << endl;
-        string card_number, pin;
-        cout << "Enter Card Number: ";
-        getline(cin, card_number);
-        cout << "Enter PIN: ";
-        getline(cin, pin);
+        string cardNumber ="0000111122223333", pin = "1234";
+        cout << "Enter to continue " << endl;
+        cin >> n;
+        // string cardNumber , pin;
+        // cout << "Enter Card Number: ";
+        // getline(cin, cardNumber);
+        // cout << "Enter PIN: ";
+        // getline(cin, pin);
 
-        string request = "AUTH:" + card_number + ":" + pin + "\n";   
-        if(!send_message(request)) {
+        string request = "AUTH:" + cardNumber + ":" + pin + "\n";   
+        if(!sendMessage(request)) {
             cerr << "Failed to send authentication request." << endl;
             return false;
         
         }
         
-        string response = receive_message();
+        string response = receiveMessage();
         // cout << "Rsponse: " << response << endl;
         if((response.substr(0, 13 ) == "AUTH_SUCCESS:")) {
-            is_authenticated = true;
-            current_user = response.substr(13);
+            isAuthenticated = true;
+            currentUser = response.substr(13);
             return true;
         }
         else {
@@ -71,11 +75,11 @@ class ATMClient {
         }
     }
 public:
-    ATMClient():socket(make_unique<tcp::socket>(io_context)){}
+    AtmClient():socket(make_unique<tcp::socket>(ioContext)){}
 
     bool connect_to_Bank(const string& host, int port) {
         try{
-            tcp::resolver resolver(io_context);
+            tcp::resolver resolver(ioContext);
             auto endpoints = resolver.resolve(host, to_string(port));
              boost::asio::connect(*socket, endpoints);
 
@@ -88,10 +92,10 @@ public:
             return false;
         }
     }
-    void start_session()
+    void startSession()
     {
         cout << "Welcome to the ATM client!" << endl;
-        while(!is_authenticated)
+        while(!isAuthenticated)
         {
             if(!authenticate())
             {
@@ -99,10 +103,10 @@ public:
                 continue;
             }
             else{
-                cout << " Authentication successful! Welcome, " << current_user << "!" << endl;
+                cout << " Authentication successful! Welcome, " << currentUser << "!" << endl;
 
                 // commmented out for testing the program, for infinite looop
-                is_authenticated = false;
+                isAuthenticated = false;
                 continue;
             }
 
@@ -114,12 +118,12 @@ public:
 
 int main() {
     try{
-        ATMClient client;
+        AtmClient client;
         if(!client.connect_to_Bank("localhost", 8080)) {
             cerr << "Failed to connect to the bank server." << endl;
             return 1;
         }
-        client.start_session();
+        client.startSession();
     }
     catch(const exception& e) {
         cerr << "Error: " << e.what() << endl;
