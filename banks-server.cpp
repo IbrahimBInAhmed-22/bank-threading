@@ -3,14 +3,55 @@
 #include<boost/asio.hpp>
 #include<unordered_map>
 #include <memory>
+#include <pthread.h>
+#include <queue>
+#include "valarray"
 
 using namespace std;
 using boost::asio::ip::tcp;
+class BankServer;
+
+
+
+
+struct threadData{
+    BankServer* server;
+    string request;
+    tcp::socket* socket;
+    threadData(string req, BankServer* serv, tcp::socket* sock):request(req),server(serv), socket(sock){}
+
+};
+class threadManager{
+    public:
+    static void* transactionWorker(void *arg);
+
+    void execute(BankServer& server, vector<string> query, tcp::socket* serv)
+    {
+        int n = query.size();
+        vector<pthread_t> threads(n);
+
+        for (int i = 0; i < n; i++)
+        {
+            unique_ptr<threadData> data (new threadData(query[i], &server, serv));
+            if(pthread_create(&threads[i], nullptr, transactionWorker, data.release()) != 0)
+            {
+                cerr << "Unable to create thread ID" << i << endl; 
+            }
+        }
+
+        for (auto &t: threads)
+        {
+            pthread_join(t, nullptr);
+        }
+    }
+};
+
 
 
 class BankServer{
 
     boost::asio::io_context ioContext;
+    pthread_mutex_t mutex;
     unique_ptr<tcp::acceptor> acceptor;
     unordered_map<string, pair<pair<string, string>, int>> cardDatabase = {
         {"0", {{"John Doe", "1234"}, 0}},
@@ -18,7 +59,22 @@ class BankServer{
         {"3456789", {{"Alice Brown", "4321"}, 100}},
         {"4567890", {{"Bob White", "8765"}, 200}}
         };
+    queue<string> queries;
+    int currentQuerries = 0;
+    vector<string> slicing(vector<string> const& v,int X, int Y)
+    {
 
+        auto first = v.begin() + X;
+        auto last = v.begin() + Y + 1;
+
+        vector<string> vector(first, last);
+
+        return vector;
+    }
+
+
+
+public:
     string loginHandle(string request)
     {
         try{
@@ -142,26 +198,48 @@ class BankServer{
             return "TXN_FAILED: at bank server.";
         }
     }
+
+    vector<string> getFirstFive()
+    {
+        int Y =5;
+        int s = queries.size();
+        if(s <= Y )
+        Y = s - 1;
+
+        currentQuerries -= Y;
+        vector<string> str ;
+        for (int i=0; i< s; i++)
+        {
+            str.push_back(queries.front());
+            queries.pop();
+        }
+
+        return str;
+    }
     void handleClient(unique_ptr<tcp::socket> socket)
     {
+        threadManager manager;
         try{
             while(true)
             {
                 boost::asio::streambuf buffer;
                 boost::asio::read_until(*socket, buffer, "\n");
-
                 istream is(&buffer);
                 string request;
                 getline(is, request);
-                string response;
-                cout << "Received request: " << request << endl;
-                if(request.substr(0, 4)=="AUTH")
-                response = loginHandle(request);
-                else
-                response =  transactionHandle(request);
-                response += "\n";
-                cout << "Response inside bank: " << response << endl;
-                boost::asio::write(*socket, boost::asio::buffer(response));
+                cout << "\n\n\nReceived request: " << request << endl;
+                queries.push(request);
+                currentQuerries++;
+                while(queries.size() > 5)
+                {
+                    cout << " Server overloaded, waiting for queries to execute " << endl;
+                    usleep(5000);
+                }
+                cout << "Size of vector before "<< queries.size() << endl;
+                vector<string> s = getFirstFive();
+
+                cout << "Size of vector after "<< queries.size() << endl;
+                manager.execute(*this, s, socket.get());
             }
         }
         catch(const boost::system::system_error & e)
@@ -169,10 +247,13 @@ class BankServer{
             cerr << "Client disconnected, " << e.what() << endl;
         }
     }
+friend class threadManager;
 public:
     BankServer(int port)
     {
+        pthread_mutex_init(&mutex, nullptr);
         acceptor = make_unique<tcp::acceptor>(ioContext, tcp::endpoint(tcp::v4(), port));
+
     }
 
     void start()
@@ -188,8 +269,38 @@ public:
         }
     }
 
-    
+    ~BankServer()
+    {
+        pthread_mutex_destroy(&mutex);
+    }
 };
+
+
+
+void* threadManager::transactionWorker(void *arg) {
+    unique_ptr<threadData> data(static_cast<threadData*>(arg));
+    cout << "\nThreadID: " << pthread_self() << " started" << endl;   
+    cout << "Request: " << data->request << endl;
+
+
+    if (data->request.substr(0, 4) == "AUTH")
+        {
+            string response = data->server->loginHandle(data->request);
+            response += "\n";
+            boost::asio::write(*data->socket, boost::asio::buffer(response));
+        }
+    else
+        {
+            string response = data->server->transactionHandle(data->request);
+            cout << "Response: " << response << endl;
+            response += "\n";
+            boost::asio::write(*data->socket, boost::asio::buffer(response));
+        }
+
+
+    return nullptr;
+}
+
 
 int main()
 {

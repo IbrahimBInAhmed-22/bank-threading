@@ -100,11 +100,21 @@ class Atm{
         string transactionType, amount;
         string n;
         cout << "\nPRESS\n 1 for withdrawal \n 2 for deposit. \n";
+
+        bool inValid = false;
+        do{
+            inValid = false;
         getline(cin, n);
+        cout << "Choice: " << n << endl;
         if(n == "1")
         transactionType = "WITHDRAW";
         else if ( n == "2")
         transactionType = "DEPOSIT";
+        else 
+        {
+            cout << " Invalid choice. Enter a valid choice. "<< endl;
+            inValid = true;}
+        }while(inValid);
         int amnt = 0;
         do{
         cout << " Enter amount: " << endl;
@@ -131,7 +141,7 @@ class Atm{
         cout << "Response: " << response;
     }
     catch(const boost::system::system_error& e)
-    {
+    {Response:
         cout << "Error while executing transaction. Error " << e.what() << endl;
         return;
     }

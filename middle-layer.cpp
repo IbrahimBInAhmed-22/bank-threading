@@ -188,6 +188,7 @@ public:
                 if(sendMessageToBank(request)) 
                 {
                     string response = receiveMessageFromBank();
+                    cout << "Response: " << response << endl;
                     currentQueries--;
                     return response;
                 }
@@ -231,8 +232,10 @@ public:
                     {
                         string response = receiveMessageFromBank();
                         currentQueries--;
+                        cout << "Response: " << response << endl;
+                        
                         return response;
-                    }
+                    }               
                     if(!printed)
                     cout << "Limit reached wait for some seconds for you transaction."<< endl;
                     printed = true;
